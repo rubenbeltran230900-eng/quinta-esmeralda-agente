@@ -51,10 +51,19 @@ def obtener_servicio():
     creds_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
     if not creds_json:
         raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON no configurado en .env")
-    info = json.loads(creds_json)
+    try:
+        info = json.loads(creds_json)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"GOOGLE_SERVICE_ACCOUNT_JSON no es JSON válido: {e}") from e
     credenciales = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
     _cliente = build("calendar", "v3", credentials=credenciales)
     return _cliente
+
+
+def _reiniciar_cliente_para_pruebas():
+    """Solo para pruebas: limpia el cliente cacheado para forzar una nueva autenticación."""
+    global _cliente
+    _cliente = None
 
 
 def _obtener_calendar_id(calendar_id: str | None) -> str:
@@ -76,6 +85,8 @@ def _capacidad_total(prefijo: str) -> int:
 
 
 def _prefijos_del_grupo(prefijo: str) -> list[str]:
+    if prefijo not in RECURSOS:
+        raise ValueError(f"Prefijo de recurso desconocido: {prefijo}")
     grupo = RECURSOS[prefijo]["grupo"]
     if grupo:
         return [p for p, r in RECURSOS.items() if r["grupo"] == grupo]
@@ -83,12 +94,13 @@ def _prefijos_del_grupo(prefijo: str) -> list[str]:
 
 
 def _listar_eventos_rango(servicio, calendar_id: str, fecha_entrada: date, fecha_salida: date) -> list[dict]:
-    time_min = f"{fecha_entrada.isoformat()}T00:00:00-06:00"
-    time_max = f"{fecha_salida.isoformat()}T00:00:00-06:00"
+    time_min = f"{fecha_entrada.isoformat()}T00:00:00"
+    time_max = f"{fecha_salida.isoformat()}T00:00:00"
     resultado = servicio.events().list(
         calendarId=calendar_id,
         timeMin=time_min,
         timeMax=time_max,
+        timeZone="America/Mexico_City",
         singleEvents=True,
         orderBy="startTime",
     ).execute()
@@ -99,6 +111,12 @@ def _hay_evento_exclusivo(eventos: list[dict]) -> bool:
     return any("EXCLUSIVO" in evento.get("description", "") for evento in eventos)
 
 
+# Solo reconoce títulos que siguen el formato generado por el bot
+# ("PREFIJO · Nombre · Np") o la convención manual existente de la familia
+# documentada en docs/calendario-reservas.html. Un título que se desvíe de
+# ese formato (typo, evento creado a mano de forma distinta, etc.) no se
+# contará como ocupación de ese recurso, lo cual puede subestimar cuántas
+# unidades están realmente ocupadas.
 def _titulo_pertenece_a_prefijo(titulo: str, prefijo: str) -> bool:
     titulo_limpio = titulo.lstrip("?").strip()
     return titulo_limpio == prefijo or titulo_limpio.startswith(f"{prefijo} ")
@@ -162,6 +180,9 @@ def crear_reservacion_calendario(
     Crea el evento de reservación en gris ("apartado sin anticipo"), con
     signo de interrogación al inicio del título, siguiendo exactamente la
     convención de docs/calendario-reservas.html.
+
+    No verifica disponibilidad por sí misma — quien llame debe invocar
+    `verificar_disponibilidad` antes de crear la reservación.
     """
     servicio = servicio or obtener_servicio()
     calendar_id = _obtener_calendar_id(calendar_id)

@@ -1,6 +1,8 @@
 from datetime import date
 from unittest.mock import MagicMock
 
+import pytest
+
 from agent import calendar_service
 
 
@@ -82,6 +84,15 @@ def test_verificar_disponibilidad_bloqueada_por_evento_exclusivo():
     )
     assert resultado["disponible"] is False
     assert resultado["razon"] == "evento_exclusivo"
+
+
+def test_verificar_disponibilidad_prefijo_desconocido_lanza_value_error():
+    servicio = _mock_servicio([])
+    with pytest.raises(ValueError, match="Prefijo de recurso desconocido"):
+        calendar_service.verificar_disponibilidad(
+            "PREFIJO_INEXISTENTE", date(2026, 9, 12), date(2026, 9, 13),
+            servicio=servicio, calendar_id="cal-test",
+        )
 
 
 def test_crear_reservacion_calendario_crea_evento_gris_con_signo_de_interrogacion():
