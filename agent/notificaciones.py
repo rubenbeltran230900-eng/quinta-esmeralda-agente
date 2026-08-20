@@ -65,9 +65,11 @@ def enviar_correo_nueva_reservacion(datos: dict, servidor_smtp=None) -> bool:
         else:
             with smtplib.SMTP_SSL("smtp.gmail.com", 465) as servidor:
                 servidor.login(origen, password)
-                # Se codifica a UTF-8 porque el mensaje incluye acentos y
-                # smtplib solo acepta texto ASCII puro como str.
-                servidor.sendmail(origen, [destino], mensaje.encode("utf-8"))
+                # Se normaliza a CRLF (RFC 5321) y se codifica a UTF-8 porque
+                # el mensaje incluye acentos y smtplib solo acepta texto
+                # ASCII puro como str.
+                mensaje_crlf = mensaje.replace("\r\n", "\n").replace("\n", "\r\n")
+                servidor.sendmail(origen, [destino], mensaje_crlf.encode("utf-8"))
         return True
     except Exception as e:
         logger.error(f"Error enviando correo de notificación: {e}")
