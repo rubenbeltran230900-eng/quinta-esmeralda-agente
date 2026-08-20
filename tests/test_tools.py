@@ -72,3 +72,24 @@ async def test_crear_reservacion_no_falla_si_el_correo_falla(tools_module, monke
     )
 
     assert resultado["event_id"] == "evt-2"
+
+
+async def test_crear_reservacion_no_falla_si_sqlite_falla(tools_module, monkeypatch):
+    tools = tools_module
+
+    monkeypatch.setattr(
+        tools.calendar_service, "crear_reservacion_calendario",
+        lambda *a, **k: {"event_id": "evt-3", "link": "https://calendar.google.com/evt-3"},
+    )
+    monkeypatch.setattr(tools.notificaciones, "enviar_correo_nueva_reservacion", lambda datos, **k: True)
+
+    def falla_sqlite(*a, **k):
+        raise RuntimeError("db caída")
+
+    monkeypatch.setattr(tools, "crear_solicitud_reservacion", falla_sqlite)
+
+    resultado = await tools.crear_reservacion(
+        "C6", "2026-11-01", "2026-11-02", "Luis Gómez", "521222222222", 3,
+    )
+
+    assert resultado["event_id"] == "evt-3"

@@ -127,13 +127,23 @@ async def crear_reservacion(
             f"No se pudo enviar el correo de notificación para la reservación {resultado_calendario['event_id']}"
         )
 
-    await crear_solicitud_reservacion(
-        telefono=telefono,
-        tipo=prefijo,
-        detalle=f"{personas} personas. {extras}".strip(),
-        fecha_solicitada=f"{fecha_entrada} a {fecha_salida}",
-        nombre_contacto=nombre_completo,
-        event_id=resultado_calendario["event_id"],
+    try:
+        await crear_solicitud_reservacion(
+            telefono=telefono,
+            tipo=prefijo,
+            detalle=f"{personas} personas. {extras}".strip(),
+            fecha_solicitada=f"{fecha_entrada} a {fecha_salida}",
+            nombre_contacto=nombre_completo,
+            event_id=resultado_calendario["event_id"],
+        )
+    except Exception as e:
+        logger.error(
+            f"Reservación creada en el calendario ({resultado_calendario['event_id']}) pero "
+            f"no se pudo guardar la copia local en SQLite: {e}"
+        )
+
+    logger.info(
+        f"Reservación completada: {resultado_calendario['event_id']} — {prefijo} para {telefono}"
     )
 
     return {
