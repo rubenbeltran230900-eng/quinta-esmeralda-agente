@@ -1,14 +1,4 @@
-import importlib
 from datetime import date
-
-import pytest
-
-
-@pytest.fixture
-async def tools_module(memory_module):
-    import agent.tools as tools
-    importlib.reload(tools)
-    return tools
 
 
 async def test_verificar_disponibilidad_delega_a_calendar_service(tools_module, monkeypatch):

@@ -22,3 +22,10 @@ async def memory_module(tmp_path, monkeypatch):
     await memory.inicializar_db()
     yield memory
     await memory.engine.dispose()
+
+
+@pytest.fixture
+async def tools_module(memory_module):
+    import agent.tools as tools
+    importlib.reload(tools)
+    return tools
