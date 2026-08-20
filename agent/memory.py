@@ -51,6 +51,7 @@ class SolicitudReservacion(Base):
     detalle: Mapped[str] = mapped_column(Text)              # descripción libre (qué opción, cuántas personas, etc.)
     fecha_solicitada: Mapped[str] = mapped_column(String(50))  # fecha que pidió el cliente (texto libre)
     nombre_contacto: Mapped[str] = mapped_column(String(150), default="")
+    event_id: Mapped[str] = mapped_column(String(200), default="")
     estado: Mapped[str] = mapped_column(String(20), default="pendiente")  # pendiente, confirmada, cancelada
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -121,6 +122,7 @@ async def crear_solicitud_reservacion(
     detalle: str,
     fecha_solicitada: str,
     nombre_contacto: str = "",
+    event_id: str = "",
 ) -> int:
     """Guarda una solicitud de reservación pendiente de confirmación humana."""
     async with async_session() as session:
@@ -130,6 +132,7 @@ async def crear_solicitud_reservacion(
             detalle=detalle,
             fecha_solicitada=fecha_solicitada,
             nombre_contacto=nombre_contacto,
+            event_id=event_id,
             estado="pendiente",
             timestamp=datetime.utcnow(),
         )
@@ -155,6 +158,7 @@ async def listar_solicitudes_reservacion(telefono: str | None = None) -> list[di
                 "detalle": s.detalle,
                 "fecha_solicitada": s.fecha_solicitada,
                 "nombre_contacto": s.nombre_contacto,
+                "event_id": s.event_id,
                 "estado": s.estado,
                 "timestamp": s.timestamp.isoformat(),
             }
