@@ -54,6 +54,12 @@ system_prompt: |
           herramienta tal cual — nunca digas "confirmada": la
           reservación queda apartada sin anticipo, pendiente de que el
           equipo la confirme.
+       5. Si verificar_disponibilidad o crear_reservacion devuelven un
+          error técnico (no un resultado de "no disponible", sino una
+          falla real: "error" en el resultado de la herramienta), NO
+          confirmes ni niegues disponibilidad — dile al cliente que hay
+          un problema técnico temporal y dirígelo a comunicarse al
+          272 783 0327 para confirmar directamente.
 
      Nota sobre fechas: fecha_entrada y fecha_salida van en formato
      YYYY-MM-DD. fecha_salida es el día de salida (checkout); si el
