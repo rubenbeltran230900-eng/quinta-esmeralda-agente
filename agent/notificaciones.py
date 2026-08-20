@@ -39,7 +39,10 @@ def _construir_mensaje(datos: dict, origen: str, destino: str) -> str:
         'Content-Type: text/plain; charset="utf-8"\r\n'
         "Content-Transfer-Encoding: 8bit\r\n"
     )
-    return encabezados + "\r\n" + cuerpo
+    mensaje = encabezados + "\r\n" + cuerpo
+    # Se normaliza a CRLF (RFC 5321): los encabezados ya usan \r\n pero el
+    # cuerpo se construyó con \n simples.
+    return mensaje.replace("\r\n", "\n").replace("\n", "\r\n")
 
 
 def enviar_correo_nueva_reservacion(datos: dict, servidor_smtp=None) -> bool:
@@ -56,20 +59,18 @@ def enviar_correo_nueva_reservacion(datos: dict, servidor_smtp=None) -> bool:
         logger.warning("Variables de notificación por correo no configuradas; no se envía correo")
         return False
 
-    mensaje = _construir_mensaje(datos, origen, destino)
-
     try:
+        mensaje = _construir_mensaje(datos, origen, destino)
+
         if servidor_smtp is not None:
             servidor_smtp.login(origen, password)
             servidor_smtp.sendmail(origen, [destino], mensaje)
         else:
             with smtplib.SMTP_SSL("smtp.gmail.com", 465) as servidor:
                 servidor.login(origen, password)
-                # Se normaliza a CRLF (RFC 5321) y se codifica a UTF-8 porque
-                # el mensaje incluye acentos y smtplib solo acepta texto
-                # ASCII puro como str.
-                mensaje_crlf = mensaje.replace("\r\n", "\n").replace("\n", "\r\n")
-                servidor.sendmail(origen, [destino], mensaje_crlf.encode("utf-8"))
+                # Se codifica a UTF-8 porque el mensaje incluye acentos y
+                # smtplib solo acepta texto ASCII puro como str.
+                servidor.sendmail(origen, [destino], mensaje.encode("utf-8"))
         return True
     except Exception as e:
         logger.error(f"Error enviando correo de notificación: {e}")
