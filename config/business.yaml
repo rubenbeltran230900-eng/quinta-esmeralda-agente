@@ -1,0 +1,25 @@
+# Configuración del negocio — Generado por AgentKit
+negocio:
+  nombre: "Quinta Esmeralda"
+  descripcion: >
+    Parque ecoturístico en Ixtaczoquitlán, Veracruz (cerca de Orizaba y Córdoba).
+    Ofrece entrada general con alberca, chapoteaderos, áreas verdes, fogatas,
+    paseo a pony, área de pesca, campo de fútbol y camping. Renta cabañas para
+    2 a 15 personas, organiza eventos (palapas no exclusivas y eventos
+    exclusivos), campamentos grupales, sesiones de fotos y experiencias
+    especiales (noches románticas, picnics, tablas de queso). También vende
+    alimentos (hamburguesas, tacos, arrachera, mojarra, etc.).
+  horario: "Todos los días de 10:00 a.m. a 6:30 p.m."
+
+agente:
+  nombre: "Quinta Esmeralda"
+  tono: "profesional_formal"
+  disponibilidad: "24/7 (el parque abre 10:00 a.m. - 6:30 p.m., pero el agente responde a toda hora)"
+  casos_de_uso:
+    - "Responder preguntas frecuentes (horarios, precios, ubicación, reglamento)"
+    - "Agendar citas y reservaciones (cabañas, eventos, experiencias especiales)"
+    - "Atender ventas / reservaciones de cabañas y eventos"
+
+metadata:
+  creado: "2026-08-15"
+  version: "1.0"
