@@ -10,7 +10,9 @@ y atender ventas de cabañas/eventos.
 import os
 import yaml
 import logging
+from datetime import date
 
+from agent import calendar_service, notificaciones
 from agent.memory import crear_solicitud_reservacion, listar_solicitudes_reservacion
 
 logger = logging.getLogger("agentkit")
@@ -68,67 +70,80 @@ def buscar_en_knowledge(consulta: str) -> str:
 # ════════════════════════════════════════════════════════════
 # Herramientas de RESERVACIONES / VENTAS
 # (cabañas, eventos, campamentos, sesión de fotos, experiencias)
+# Usan el calendario real de Google — ver agent/calendar_service.py
 # ════════════════════════════════════════════════════════════
 
-TIPOS_RESERVACION_VALIDOS = {
-    "cabana",
-    "evento_palapa",
-    "evento_exclusivo",
-    "campamento",
-    "sesion_fotos",
-    "noche_romantica",
-    "picnic",
-}
-
-
-async def registrar_solicitud_reservacion(
-    telefono: str,
-    tipo: str,
-    detalle: str,
-    fecha_solicitada: str,
-    nombre_contacto: str = "",
-) -> dict:
+async def verificar_disponibilidad(prefijo: str, fecha_entrada: str, fecha_salida: str) -> dict:
     """
-    Registra una solicitud de reservación pendiente de confirmación.
-
-    Quinta Esmeralda no cuenta con un calendario de disponibilidad en
-    tiempo real, así que el agente SIEMPRE registra la solicitud como
-    "pendiente" y el equipo humano la confirma por su cuenta (llamando o
-    escribiendo al cliente).
+    Consulta el calendario real de Quinta Esmeralda. SIEMPRE se debe
+    llamar esta función antes de prometerle una fecha a un cliente.
 
     Args:
-        telefono: número de WhatsApp del cliente
-        tipo: uno de TIPOS_RESERVACION_VALIDOS (si no aplica, usar el más
-              cercano, ej. "evento_palapa" para cumpleaños en palapa)
-        detalle: descripción libre — qué opción eligió, cuántas personas,
-                 si quiere decoración, etc.
-        fecha_solicitada: fecha/rango que pidió el cliente, en texto libre
-        nombre_contacto: nombre del cliente si lo compartió
-
-    Returns:
-        dict con el id de la solicitud y un mensaje de confirmación
+        prefijo: uno de "C1", "C2", "C6", "C7", "FAMILIAR", "EVENTO",
+                 "CAMPA", "PICNIC"
+        fecha_entrada: fecha de entrada, formato YYYY-MM-DD
+        fecha_salida: fecha de salida, formato YYYY-MM-DD
     """
-    if tipo not in TIPOS_RESERVACION_VALIDOS:
-        logger.warning(f"Tipo de reservación no reconocido: {tipo}")
+    entrada = date.fromisoformat(fecha_entrada)
+    salida = date.fromisoformat(fecha_salida)
+    return calendar_service.verificar_disponibilidad(prefijo, entrada, salida)
 
-    solicitud_id = await crear_solicitud_reservacion(
-        telefono=telefono,
-        tipo=tipo,
-        detalle=detalle,
-        fecha_solicitada=fecha_solicitada,
-        nombre_contacto=nombre_contacto,
+
+async def crear_reservacion(
+    prefijo: str,
+    fecha_entrada: str,
+    fecha_salida: str,
+    nombre_completo: str,
+    telefono: str,
+    personas: int,
+    extras: str = "",
+    notas: str = "",
+) -> dict:
+    """
+    Aparta la reservación en el calendario (gris, sin anticipo) y notifica
+    por correo al negocio. Solo llamar después de confirmar disponibilidad
+    con verificar_disponibilidad Y de que el cliente confirmó que quiere
+    apartar.
+    """
+    entrada = date.fromisoformat(fecha_entrada)
+    salida = date.fromisoformat(fecha_salida)
+
+    resultado_calendario = calendar_service.crear_reservacion_calendario(
+        prefijo, entrada, salida, nombre_completo, telefono, personas, extras, notas,
     )
 
-    logger.info(f"Nueva solicitud de reservación #{solicitud_id} de {telefono}: {tipo} — {detalle}")
+    datos_correo = {
+        "prefijo": prefijo,
+        "nombre_completo": nombre_completo,
+        "telefono": telefono,
+        "personas": personas,
+        "fecha_entrada": fecha_entrada,
+        "fecha_salida": fecha_salida,
+        "link": resultado_calendario["link"],
+    }
+    correo_enviado = notificaciones.enviar_correo_nueva_reservacion(datos_correo)
+    if not correo_enviado:
+        logger.warning(
+            f"No se pudo enviar el correo de notificación para la reservación {resultado_calendario['event_id']}"
+        )
+
+    await crear_solicitud_reservacion(
+        telefono=telefono,
+        tipo=prefijo,
+        detalle=f"{personas} personas. {extras}".strip(),
+        fecha_solicitada=f"{fecha_entrada} a {fecha_salida}",
+        nombre_contacto=nombre_completo,
+        event_id=resultado_calendario["event_id"],
+    )
 
     return {
-        "solicitud_id": solicitud_id,
-        "estado": "pendiente",
+        "event_id": resultado_calendario["event_id"],
+        "link": resultado_calendario["link"],
         "mensaje": (
-            "Su solicitud fue registrada. Nuestro equipo se pondrá en contacto "
-            "para confirmar disponibilidad. Recuerde que, por políticas de la "
-            "empresa, no se realizan cancelaciones ni devoluciones en cabañas "
-            "ni eventos."
+            "Su solicitud quedó apartada en nuestro calendario. Nuestro equipo se "
+            "pondrá en contacto para confirmar el anticipo. Recuerde que, por "
+            "política de la empresa, no se realizan cancelaciones ni devoluciones "
+            "en cabañas ni eventos."
         ),
     }
 
