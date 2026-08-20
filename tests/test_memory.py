@@ -1,18 +1,3 @@
-import importlib
-
-import pytest
-
-
-@pytest.fixture
-async def memory_module(tmp_path, monkeypatch):
-    db_path = tmp_path / "test_memory.db"
-    monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{db_path}")
-    import agent.memory as memory
-    importlib.reload(memory)
-    await memory.inicializar_db()
-    return memory
-
-
 async def test_crear_solicitud_reservacion_guarda_event_id(memory_module):
     memory = memory_module
     solicitud_id = await memory.crear_solicitud_reservacion(
