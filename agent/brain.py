@@ -10,6 +10,8 @@ respuestas usando la API de Anthropic Claude, con acceso a herramientas
 import os
 import yaml
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from anthropic import AsyncAnthropic
 from dotenv import load_dotenv
 
@@ -22,6 +24,15 @@ client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 MODELO = "claude-sonnet-5"
 MAX_ITERACIONES_HERRAMIENTAS = 5
+ZONA_HORARIA_NEGOCIO = ZoneInfo("America/Mexico_City")
+
+DIAS_SEMANA = [
+    "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo",
+]
+MESES = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+    "septiembre", "octubre", "noviembre", "diciembre",
+]
 
 TOOLS_SCHEMA = [
     {
@@ -101,6 +112,31 @@ def cargar_system_prompt() -> str:
     return config.get("system_prompt", "Eres un asistente útil. Responde en español.")
 
 
+def _nota_fecha_actual(ahora: datetime | None = None) -> str:
+    """
+    Construye la nota que le dice a Claude qué día es hoy.
+
+    Sin esto, Claude no tiene forma de saber la fecha real: cuando un
+    cliente dice "el 18 de septiembre" sin año, Claude tiene que inventar
+    uno — y puede inventar un año que ya pasó, mandando la reservación al
+    pasado (donde nunca la vuelve a encontrar verificar_disponibilidad).
+    """
+    ahora = ahora or datetime.now(ZONA_HORARIA_NEGOCIO)
+    dia_semana = DIAS_SEMANA[ahora.weekday()]
+    mes = MESES[ahora.month - 1]
+    return (
+        "\n\n## Fecha y hora actual\n"
+        f"Hoy es {dia_semana} {ahora.day} de {mes} de {ahora.year}, "
+        f"{ahora.strftime('%H:%M')} hrs (hora de Veracruz).\n"
+        "Cuando el cliente mencione una fecha sin decir el año (por "
+        "ejemplo \"el 18 de septiembre\" o \"el próximo sábado\"), calcula "
+        "el año usando la fecha de hoy: si esa fecha ya pasó este año, es "
+        "del año que sigue; si todavía no llega, es de este año. NUNCA "
+        "asumas un año fijo de memoria — siempre calcúlalo a partir de la "
+        "fecha de hoy que se te dio arriba."
+    )
+
+
 def obtener_mensaje_error() -> str:
     """Retorna el mensaje de error configurado en prompts.yaml."""
     config = cargar_config_prompts()
@@ -140,7 +176,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> str:
     if not mensaje or len(mensaje.strip()) < 2:
         return obtener_mensaje_fallback()
 
-    system_prompt = cargar_system_prompt()
+    system_prompt = cargar_system_prompt() + _nota_fecha_actual()
 
     mensajes = [{"role": m["role"], "content": m["content"]} for m in historial]
     mensajes.append({"role": "user", "content": mensaje})

@@ -1,7 +1,31 @@
 import types
+from datetime import datetime
 from unittest.mock import AsyncMock
 
 from agent import brain
+
+
+def test_nota_fecha_actual_calcula_dia_mes_y_anio_correctos():
+    # Martes 8 de septiembre de 2026, 15:30
+    ahora = datetime(2026, 9, 8, 15, 30)
+    nota = brain._nota_fecha_actual(ahora)
+    assert "martes 8 de septiembre de 2026" in nota
+    assert "15:30" in nota
+
+
+def test_generar_respuesta_incluye_la_fecha_de_hoy_en_el_system_prompt(monkeypatch):
+    monkeypatch.setattr(brain, "cargar_system_prompt", lambda: "Eres un asistente de prueba.")
+
+    respuestas = [_respuesta([_bloque_texto("Hola.")], stop_reason="end_turn")]
+    mock_create = AsyncMock(side_effect=respuestas)
+    monkeypatch.setattr(brain.client.messages, "create", mock_create)
+
+    import asyncio
+    asyncio.run(brain.generar_respuesta("Hola", []))
+
+    system_enviado = mock_create.call_args.kwargs["system"]
+    assert "Fecha y hora actual" in system_enviado
+    assert "NUNCA asumas un año fijo de memoria" in system_enviado
 
 
 def _bloque_texto(texto):
