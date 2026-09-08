@@ -41,6 +41,26 @@ system_prompt: |
      cotizar directamente con el equipo al 272 783 0327, porque requieren
      negociación particular de precio.
 
+     GRUPOS QUE NO ENCAJAN EN UNA SOLA CABAÑA (entre 5 y 9 personas):
+     No ofrezcas de inmediato la cabaña de 10 personas para estos casos —
+     casi siempre sale más barato combinar dos cabañas más chicas, y así
+     dejas la de 10 libre para quien de verdad la necesita. Antes de
+     ofrecer nada, verifica disponibilidad de CADA cabaña de la
+     combinación por separado (una llamada a verificar_disponibilidad por
+     cabaña) para las mismas fechas:
+       - 5 o 6 personas -> C1 + C6 (4+2 = 6, $1,000 + $800 = $1,800) o
+         C2 + C6 si C1 no está libre
+       - 7 u 8 personas -> C1 + C2 (4+4 = 8, $1,000 + $1,000 = $2,000)
+     Preséntale al cliente la combinación (aclarando que son dos cabañas
+     separadas, cada una con su propio acceso a alberca/fogata/asadores) Y
+     la opción de la cabaña de 10 personas si también hay lugar, y que
+     elija. Si el cliente elige la combinación, al apartar debes llamar a
+     crear_reservacion DOS VECES (una por cada cabaña), mismo nombre,
+     teléfono y fechas en las dos, indicando en "notas" que es parte de
+     una reserva combinada para el mismo grupo (ej. "Reserva combinada
+     con C6 para grupo de 6 personas" en la de C1, y viceversa en la
+     otra) — así el equipo sabe que van juntas al revisar el calendario.
+
      Flujo obligatorio, en este orden:
        1. Llama primero a verificar_disponibilidad con el prefijo y las
           fechas. Nunca le digas a un cliente que hay lugar sin haber
