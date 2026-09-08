@@ -79,10 +79,14 @@ def enviar_correo_nueva_reservacion(datos: dict, servidor_smtp=None) -> bool:
             servidor_smtp.login(origen, password)
             servidor_smtp.sendmail(origen, destinatarios, mensaje)
         else:
-            # timeout corto a propósito: si el proveedor de hosting bloquea
-            # el puerto SMTP saliente (pasa en algunos), esto falla rápido
-            # en vez de colgar el procesamiento del mensaje varios minutos.
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as servidor:
+            # Puerto 587 con STARTTLS, no 465 con SSL directo: algunos
+            # proveedores de hosting (Railway incluido, al parecer) bloquean
+            # el 465 pero dejan pasar el 587, que es el puerto estándar de
+            # envío autenticado. timeout corto a propósito: si de todos
+            # modos el hosting bloquea SMTP saliente, esto falla rápido en
+            # vez de colgar el procesamiento del mensaje varios minutos.
+            with smtplib.SMTP("smtp.gmail.com", 587, timeout=10) as servidor:
+                servidor.starttls()
                 servidor.login(origen, password)
                 # Se codifica a UTF-8 porque el mensaje incluye acentos y
                 # smtplib solo acepta texto ASCII puro como str.
