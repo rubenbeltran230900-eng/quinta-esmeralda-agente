@@ -79,7 +79,10 @@ def enviar_correo_nueva_reservacion(datos: dict, servidor_smtp=None) -> bool:
             servidor_smtp.login(origen, password)
             servidor_smtp.sendmail(origen, destinatarios, mensaje)
         else:
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as servidor:
+            # timeout corto a propósito: si el proveedor de hosting bloquea
+            # el puerto SMTP saliente (pasa en algunos), esto falla rápido
+            # en vez de colgar el procesamiento del mensaje varios minutos.
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as servidor:
                 servidor.login(origen, password)
                 # Se codifica a UTF-8 porque el mensaje incluye acentos y
                 # smtplib solo acepta texto ASCII puro como str.

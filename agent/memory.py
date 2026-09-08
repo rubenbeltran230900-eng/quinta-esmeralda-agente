@@ -7,10 +7,11 @@ por número de teléfono usando SQLite (local) o PostgreSQL (producción).
 """
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String, Text, DateTime, select, Integer
+from sqlalchemy import String, Text, DateTime, select, delete, Integer
+from sqlalchemy.exc import IntegrityError
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -54,6 +55,21 @@ class SolicitudReservacion(Base):
     event_id: Mapped[str] = mapped_column(String(200), default="")
     estado: Mapped[str] = mapped_column(String(20), default="pendiente")  # pendiente, confirmada, cancelada
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class EventoProcesado(Base):
+    """
+    Marca de mensajes de WhatsApp ya procesados.
+
+    Meta entrega los webhooks "al menos una vez": si nuestro servidor tarda
+    en responder, reintenta el mismo mensaje (hasta 7 veces). Sin esta
+    tabla, cada reintento se procesaría como si fuera un mensaje nuevo —
+    incluyendo llamar dos veces a crear_reservacion para la misma solicitud.
+    """
+    __tablename__ = "eventos_procesados"
+
+    mensaje_id: Mapped[str] = mapped_column(String(200), primary_key=True)
+    creado_en: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 async def inicializar_db():
@@ -164,3 +180,34 @@ async def listar_solicitudes_reservacion(telefono: str | None = None) -> list[di
             }
             for s in solicitudes
         ]
+
+
+async def marcar_evento_procesado(mensaje_id: str) -> bool:
+    """
+    Registra un mensaje como procesado.
+
+    Retorna True si es la primera vez que se ve (hay que procesarlo), o
+    False si ya se había procesado antes (reintento de Meta, se ignora).
+
+    La unicidad la garantiza la base de datos (clave primaria), no una
+    consulta previa: así dos webhooks que llegan casi al mismo tiempo con
+    el mismo mensaje_id no pasan los dos.
+    """
+    if not mensaje_id:
+        return True  # sin id no se puede deduplicar: se procesa
+    async with async_session() as session:
+        session.add(EventoProcesado(mensaje_id=mensaje_id, creado_en=datetime.utcnow()))
+        try:
+            await session.commit()
+            return True
+        except IntegrityError:
+            await session.rollback()
+            return False
+
+
+async def limpiar_eventos_viejos(dias: int = 7):
+    """Borra las marcas de eventos de hace más de N días, para que la tabla no crezca sin fin."""
+    limite = datetime.utcnow() - timedelta(days=dias)
+    async with async_session() as session:
+        await session.execute(delete(EventoProcesado).where(EventoProcesado.creado_en < limite))
+        await session.commit()
