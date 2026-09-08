@@ -94,8 +94,13 @@ def _prefijos_del_grupo(prefijo: str) -> list[str]:
 
 
 def _listar_eventos_rango(servicio, calendar_id: str, fecha_entrada: date, fecha_salida: date) -> list[dict]:
-    time_min = f"{fecha_entrada.isoformat()}T00:00:00"
-    time_max = f"{fecha_salida.isoformat()}T00:00:00"
+    # La API de Google Calendar exige que timeMin/timeMax sean RFC3339 CON
+    # offset explícito ("-06:00" o "Z") — un timestamp "desnudo" sin offset
+    # es rechazado con 400 Bad Request, aunque se mande "timeZone" aparte.
+    # Veracruz usa America/Mexico_City, que desde 2022 no tiene horario de
+    # verano y se mantiene en UTC-6 todo el año.
+    time_min = f"{fecha_entrada.isoformat()}T00:00:00-06:00"
+    time_max = f"{fecha_salida.isoformat()}T00:00:00-06:00"
     resultado = servicio.events().list(
         calendarId=calendar_id,
         timeMin=time_min,
