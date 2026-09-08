@@ -1,5 +1,7 @@
+import base64
+import json
 from datetime import date
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -115,3 +117,48 @@ def test_crear_reservacion_calendario_crea_evento_gris_con_signo_de_interrogacio
     assert body["end"] == {"date": "2026-09-13"}
     assert "Juan Pérez" in body["description"]
     assert "521234567890" in body["description"]
+
+
+def _credenciales_de_prueba():
+    return {
+        "type": "service_account",
+        "project_id": "proyecto-test",
+        "private_key": "-----BEGIN PRIVATE KEY-----\nABC\n-----END PRIVATE KEY-----\n",
+        "client_email": "cuenta@proyecto-test.iam.gserviceaccount.com",
+        "token_uri": "https://oauth2.googleapis.com/token",
+    }
+
+
+def test_obtener_servicio_acepta_json_crudo(monkeypatch):
+    calendar_service._reiniciar_cliente_para_pruebas()
+    monkeypatch.setenv("GOOGLE_SERVICE_ACCOUNT_JSON", json.dumps(_credenciales_de_prueba()))
+    with patch("agent.calendar_service.service_account.Credentials.from_service_account_info") as fake_creds, \
+         patch("agent.calendar_service.build") as fake_build:
+        fake_build.return_value = "cliente-falso"
+        resultado = calendar_service.obtener_servicio()
+    assert resultado == "cliente-falso"
+    info_recibida = fake_creds.call_args[0][0]
+    assert info_recibida["client_email"] == "cuenta@proyecto-test.iam.gserviceaccount.com"
+    calendar_service._reiniciar_cliente_para_pruebas()
+
+
+def test_obtener_servicio_acepta_base64(monkeypatch):
+    calendar_service._reiniciar_cliente_para_pruebas()
+    credenciales_b64 = base64.b64encode(json.dumps(_credenciales_de_prueba()).encode("utf-8")).decode("ascii")
+    monkeypatch.setenv("GOOGLE_SERVICE_ACCOUNT_JSON", credenciales_b64)
+    with patch("agent.calendar_service.service_account.Credentials.from_service_account_info") as fake_creds, \
+         patch("agent.calendar_service.build") as fake_build:
+        fake_build.return_value = "cliente-falso"
+        resultado = calendar_service.obtener_servicio()
+    assert resultado == "cliente-falso"
+    info_recibida = fake_creds.call_args[0][0]
+    assert info_recibida["client_email"] == "cuenta@proyecto-test.iam.gserviceaccount.com"
+    calendar_service._reiniciar_cliente_para_pruebas()
+
+
+def test_obtener_servicio_rechaza_valor_invalido(monkeypatch):
+    calendar_service._reiniciar_cliente_para_pruebas()
+    monkeypatch.setenv("GOOGLE_SERVICE_ACCOUNT_JSON", "esto no es ni json ni base64 valido !!!")
+    with pytest.raises(RuntimeError, match="no es JSON válido ni base64 válido"):
+        calendar_service.obtener_servicio()
+    calendar_service._reiniciar_cliente_para_pruebas()

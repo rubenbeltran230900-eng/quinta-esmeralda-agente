@@ -10,6 +10,8 @@ este módulo la reproduce en código, no la reinventa.
 
 import os
 import json
+import base64
+import binascii
 import logging
 from datetime import date
 
@@ -51,10 +53,20 @@ def obtener_servicio():
     creds_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
     if not creds_json:
         raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON no configurado en .env")
+
+    # Acepta el JSON crudo (como se usa en local, vía .env) o el mismo JSON
+    # codificado en base64 (recomendado en producción: algunas plataformas
+    # de hosting corrompen los saltos de línea "\n" de la llave privada al
+    # guardar la variable de entorno; base64 no tiene ese problema porque
+    # no usa caracteres de control).
     try:
         info = json.loads(creds_json)
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"GOOGLE_SERVICE_ACCOUNT_JSON no es JSON válido: {e}") from e
+    except json.JSONDecodeError:
+        try:
+            decodificado = base64.b64decode(creds_json, validate=True).decode("utf-8")
+            info = json.loads(decodificado)
+        except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError) as e:
+            raise RuntimeError(f"GOOGLE_SERVICE_ACCOUNT_JSON no es JSON válido ni base64 válido: {e}") from e
     credenciales = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
     _cliente = build("calendar", "v3", credentials=credenciales)
     return _cliente
