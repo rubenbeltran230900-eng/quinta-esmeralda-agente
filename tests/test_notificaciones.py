@@ -40,6 +40,22 @@ def test_enviar_correo_llama_login_y_sendmail(monkeypatch):
     assert "Juan Pérez" in cuerpo
 
 
+def test_enviar_correo_a_varios_destinatarios(monkeypatch):
+    monkeypatch.setenv("NOTIFICACION_EMAIL_ORIGEN", "negocio@gmail.com")
+    monkeypatch.setenv("NOTIFICACION_EMAIL_PASSWORD", "app-password-falsa")
+    monkeypatch.setenv(
+        "NOTIFICACION_EMAIL_DESTINO", "rbelmor@hotmail.com, reservaciones.qe@gmail.com"
+    )
+
+    servidor_falso = MagicMock()
+    resultado = notificaciones.enviar_correo_nueva_reservacion(DATOS_EJEMPLO, servidor_smtp=servidor_falso)
+
+    assert resultado is True
+    _, destinatarios, cuerpo = servidor_falso.sendmail.call_args[0]
+    assert destinatarios == ["rbelmor@hotmail.com", "reservaciones.qe@gmail.com"]
+    assert "To: rbelmor@hotmail.com, reservaciones.qe@gmail.com" in cuerpo
+
+
 def test_enviar_correo_con_error_smtp_retorna_false(monkeypatch):
     monkeypatch.setenv("NOTIFICACION_EMAIL_ORIGEN", "negocio@gmail.com")
     monkeypatch.setenv("NOTIFICACION_EMAIL_PASSWORD", "app-password-falsa")

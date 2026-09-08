@@ -15,7 +15,15 @@ from email.header import Header
 logger = logging.getLogger("agentkit")
 
 
-def _construir_mensaje(datos: dict, origen: str, destino: str) -> str:
+def _parsear_destinatarios(destino: str) -> list[str]:
+    """
+    Convierte "a@x.com, b@y.com" en ["a@x.com", "b@y.com"].
+    Permite mandar el aviso a varias personas del negocio a la vez.
+    """
+    return [correo.strip() for correo in destino.split(",") if correo.strip()]
+
+
+def _construir_mensaje(datos: dict, origen: str, destinatarios: list[str]) -> str:
     cuerpo = (
         "Nueva solicitud de reservación por WhatsApp\n\n"
         f"Recurso:        {datos['prefijo']}\n"
@@ -33,7 +41,7 @@ def _construir_mensaje(datos: dict, origen: str, destino: str) -> str:
     ).encode()
     encabezados = (
         f"From: {origen}\r\n"
-        f"To: {destino}\r\n"
+        f"To: {', '.join(destinatarios)}\r\n"
         f"Subject: {asunto}\r\n"
         "MIME-Version: 1.0\r\n"
         'Content-Type: text/plain; charset="utf-8"\r\n'
@@ -59,18 +67,23 @@ def enviar_correo_nueva_reservacion(datos: dict, servidor_smtp=None) -> bool:
         logger.warning("Variables de notificación por correo no configuradas; no se envía correo")
         return False
 
+    destinatarios = _parsear_destinatarios(destino)
+    if not destinatarios:
+        logger.warning("NOTIFICACION_EMAIL_DESTINO no tiene ningún correo válido; no se envía correo")
+        return False
+
     try:
-        mensaje = _construir_mensaje(datos, origen, destino)
+        mensaje = _construir_mensaje(datos, origen, destinatarios)
 
         if servidor_smtp is not None:
             servidor_smtp.login(origen, password)
-            servidor_smtp.sendmail(origen, [destino], mensaje)
+            servidor_smtp.sendmail(origen, destinatarios, mensaje)
         else:
             with smtplib.SMTP_SSL("smtp.gmail.com", 465) as servidor:
                 servidor.login(origen, password)
                 # Se codifica a UTF-8 porque el mensaje incluye acentos y
                 # smtplib solo acepta texto ASCII puro como str.
-                servidor.sendmail(origen, [destino], mensaje.encode("utf-8"))
+                servidor.sendmail(origen, destinatarios, mensaje.encode("utf-8"))
         return True
     except Exception as e:
         logger.error(f"Error enviando correo de notificación: {e}")
