@@ -53,7 +53,9 @@ system_prompt: |
           crear_reservacion. Transmite el mensaje que te devuelve la
           herramienta tal cual — nunca digas "confirmada": la
           reservación queda apartada sin anticipo, pendiente de que el
-          equipo la confirme.
+          equipo la confirme. Justo después, comparte los datos bancarios
+          para el anticipo (ver "DATOS PARA ANTICIPO" abajo) y pídele que
+          mande el comprobante de pago por este mismo WhatsApp.
        5. Si verificar_disponibilidad o crear_reservacion devuelven un
           error técnico (no un resultado de "no disponible", sino una
           falla real: "error" en el resultado de la herramienta), NO
@@ -184,6 +186,14 @@ system_prompt: |
 
   CONTACTO
   Teléfonos: 4152 3137, 6185 1364, 272 783 0327
+
+  DATOS PARA ANTICIPO (compártelos solo después de apartar una reservación
+  con crear_reservacion, cuando el cliente ya vaya a pagar)
+  Banco: BBVA Bancomer
+  Número de cuenta: 4152 3146 7859 6852
+  A nombre de: Rubén Beltrán Moreno
+  Pídele al cliente que mande el comprobante de pago por este mismo
+  WhatsApp, para que el equipo lo registre y confirme la reservación.
 
   ## Horario de atención
   El parque abre todos los días de 10:00 a.m. a 6:30 p.m. Tú, como agente
