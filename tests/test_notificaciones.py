@@ -13,9 +13,16 @@ DATOS_EJEMPLO = {
 }
 
 
+def _respuesta_falsa(status_code, text=""):
+    r = MagicMock()
+    r.status_code = status_code
+    r.text = text
+    return r
+
+
 def test_enviar_correo_sin_configuracion_retorna_false(monkeypatch):
-    monkeypatch.delenv("NOTIFICACION_EMAIL_ORIGEN", raising=False)
-    monkeypatch.delenv("NOTIFICACION_EMAIL_PASSWORD", raising=False)
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
+    monkeypatch.delenv("RESEND_FROM", raising=False)
     monkeypatch.delenv("NOTIFICACION_EMAIL_DESTINO", raising=False)
 
     resultado = notificaciones.enviar_correo_nueva_reservacion(DATOS_EJEMPLO)
@@ -23,47 +30,63 @@ def test_enviar_correo_sin_configuracion_retorna_false(monkeypatch):
     assert resultado is False
 
 
-def test_enviar_correo_llama_login_y_sendmail(monkeypatch):
-    monkeypatch.setenv("NOTIFICACION_EMAIL_ORIGEN", "negocio@gmail.com")
-    monkeypatch.setenv("NOTIFICACION_EMAIL_PASSWORD", "app-password-falsa")
+def test_enviar_correo_llama_a_resend_correctamente(monkeypatch):
+    monkeypatch.setenv("RESEND_API_KEY", "re_falsa_123")
+    monkeypatch.setenv("RESEND_FROM", "Quinta Esmeralda <onboarding@resend.dev>")
     monkeypatch.setenv("NOTIFICACION_EMAIL_DESTINO", "negocio@gmail.com")
 
-    servidor_falso = MagicMock()
-    resultado = notificaciones.enviar_correo_nueva_reservacion(DATOS_EJEMPLO, servidor_smtp=servidor_falso)
+    cliente_falso = MagicMock()
+    cliente_falso.post.return_value = _respuesta_falsa(200)
+
+    resultado = notificaciones.enviar_correo_nueva_reservacion(DATOS_EJEMPLO, cliente_http=cliente_falso)
 
     assert resultado is True
-    servidor_falso.login.assert_called_once_with("negocio@gmail.com", "app-password-falsa")
-    assert servidor_falso.sendmail.call_count == 1
-    remitente, destinatarios, cuerpo = servidor_falso.sendmail.call_args[0]
-    assert remitente == "negocio@gmail.com"
-    assert destinatarios == ["negocio@gmail.com"]
-    assert "Juan Pérez" in cuerpo
+    cliente_falso.post.assert_called_once()
+    _, kwargs = cliente_falso.post.call_args
+    assert kwargs["json"]["to"] == ["negocio@gmail.com"]
+    assert kwargs["json"]["from"] == "Quinta Esmeralda <onboarding@resend.dev>"
+    assert kwargs["headers"]["Authorization"] == "Bearer re_falsa_123"
+    assert "Juan Pérez" in kwargs["json"]["text"]
 
 
 def test_enviar_correo_a_varios_destinatarios(monkeypatch):
-    monkeypatch.setenv("NOTIFICACION_EMAIL_ORIGEN", "negocio@gmail.com")
-    monkeypatch.setenv("NOTIFICACION_EMAIL_PASSWORD", "app-password-falsa")
+    monkeypatch.setenv("RESEND_API_KEY", "re_falsa_123")
+    monkeypatch.setenv("RESEND_FROM", "Quinta Esmeralda <onboarding@resend.dev>")
     monkeypatch.setenv(
         "NOTIFICACION_EMAIL_DESTINO", "rbelmor@hotmail.com, reservaciones.qe@gmail.com"
     )
 
-    servidor_falso = MagicMock()
-    resultado = notificaciones.enviar_correo_nueva_reservacion(DATOS_EJEMPLO, servidor_smtp=servidor_falso)
+    cliente_falso = MagicMock()
+    cliente_falso.post.return_value = _respuesta_falsa(200)
+
+    resultado = notificaciones.enviar_correo_nueva_reservacion(DATOS_EJEMPLO, cliente_http=cliente_falso)
 
     assert resultado is True
-    _, destinatarios, cuerpo = servidor_falso.sendmail.call_args[0]
-    assert destinatarios == ["rbelmor@hotmail.com", "reservaciones.qe@gmail.com"]
-    assert "To: rbelmor@hotmail.com, reservaciones.qe@gmail.com" in cuerpo
+    _, kwargs = cliente_falso.post.call_args
+    assert kwargs["json"]["to"] == ["rbelmor@hotmail.com", "reservaciones.qe@gmail.com"]
 
 
-def test_enviar_correo_con_error_smtp_retorna_false(monkeypatch):
-    monkeypatch.setenv("NOTIFICACION_EMAIL_ORIGEN", "negocio@gmail.com")
-    monkeypatch.setenv("NOTIFICACION_EMAIL_PASSWORD", "app-password-falsa")
+def test_enviar_correo_con_error_de_resend_retorna_false(monkeypatch):
+    monkeypatch.setenv("RESEND_API_KEY", "re_falsa_123")
+    monkeypatch.setenv("RESEND_FROM", "Quinta Esmeralda <onboarding@resend.dev>")
     monkeypatch.setenv("NOTIFICACION_EMAIL_DESTINO", "negocio@gmail.com")
 
-    servidor_falso = MagicMock()
-    servidor_falso.login.side_effect = Exception("credenciales inválidas")
+    cliente_falso = MagicMock()
+    cliente_falso.post.return_value = _respuesta_falsa(401, "invalid api key")
 
-    resultado = notificaciones.enviar_correo_nueva_reservacion(DATOS_EJEMPLO, servidor_smtp=servidor_falso)
+    resultado = notificaciones.enviar_correo_nueva_reservacion(DATOS_EJEMPLO, cliente_http=cliente_falso)
+
+    assert resultado is False
+
+
+def test_enviar_correo_con_excepcion_de_red_retorna_false(monkeypatch):
+    monkeypatch.setenv("RESEND_API_KEY", "re_falsa_123")
+    monkeypatch.setenv("RESEND_FROM", "Quinta Esmeralda <onboarding@resend.dev>")
+    monkeypatch.setenv("NOTIFICACION_EMAIL_DESTINO", "negocio@gmail.com")
+
+    cliente_falso = MagicMock()
+    cliente_falso.post.side_effect = Exception("network error")
+
+    resultado = notificaciones.enviar_correo_nueva_reservacion(DATOS_EJEMPLO, cliente_http=cliente_falso)
 
     assert resultado is False

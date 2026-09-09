@@ -1,18 +1,25 @@
-# agent/notificaciones.py — Notificaciones por correo al negocio
+# agent/notificaciones.py — Notificaciones por correo al negocio (vía Resend)
 # Generado por AgentKit
 
 """
 Envía un correo al negocio cada vez que el agente aparta una reservación
 nueva en el calendario, para que sepan que hay que confirmarla con el
 cliente y registrar el anticipo cuando llegue.
+
+Usa la API HTTP de Resend en vez de SMTP: en Railway, las conexiones SMTP
+salientes (probamos los puertos 465 y 587) fallaron de forma intermitente
+con "Network is unreachable" — HTTPS es mucho más confiable en la mayoría
+de plataformas de hosting, que sí suelen dejar pasar tráfico web normal
+aunque bloqueen SMTP.
 """
 
 import os
 import logging
-import smtplib
-from email.header import Header
+import httpx
 
 logger = logging.getLogger("agentkit")
+
+RESEND_API_URL = "https://api.resend.com/emails"
 
 
 def _parsear_destinatarios(destino: str) -> list[str]:
@@ -23,8 +30,8 @@ def _parsear_destinatarios(destino: str) -> list[str]:
     return [correo.strip() for correo in destino.split(",") if correo.strip()]
 
 
-def _construir_mensaje(datos: dict, origen: str, destinatarios: list[str]) -> str:
-    cuerpo = (
+def _construir_cuerpo(datos: dict) -> str:
+    return (
         "Nueva solicitud de reservación por WhatsApp\n\n"
         f"Recurso:        {datos['prefijo']}\n"
         f"Cliente:        {datos['nombre_completo']}\n"
@@ -36,35 +43,22 @@ def _construir_mensaje(datos: dict, origen: str, destinatarios: list[str]) -> st
         "Está apartada en gris (sin anticipo). Confirma con el cliente y,\n"
         "cuando llegue el anticipo, actualiza el evento a color según la guía."
     )
-    asunto = Header(
-        f"Nueva reservación: {datos['prefijo']} — {datos['nombre_completo']}", "utf-8"
-    ).encode()
-    encabezados = (
-        f"From: {origen}\r\n"
-        f"To: {', '.join(destinatarios)}\r\n"
-        f"Subject: {asunto}\r\n"
-        "MIME-Version: 1.0\r\n"
-        'Content-Type: text/plain; charset="utf-8"\r\n'
-        "Content-Transfer-Encoding: 8bit\r\n"
-    )
-    mensaje = encabezados + "\r\n" + cuerpo
-    # Se normaliza a CRLF (RFC 5321): los encabezados ya usan \r\n pero el
-    # cuerpo se construyó con \n simples.
-    return mensaje.replace("\r\n", "\n").replace("\n", "\r\n")
 
 
-def enviar_correo_nueva_reservacion(datos: dict, servidor_smtp=None) -> bool:
+def enviar_correo_nueva_reservacion(datos: dict, cliente_http=None) -> bool:
     """
-    Envía el correo de notificación. `servidor_smtp` se puede inyectar en
-    pruebas; en producción se conecta a Gmail vía SMTP con una contraseña
-    de aplicación.
+    Envía el correo de notificación vía la API de Resend.
+
+    `cliente_http` se puede inyectar en pruebas — debe exponer un método
+    `.post(url, json=..., headers=...)` que retorne un objeto con
+    `.status_code` y `.text`. En producción se usa un `httpx.Client` real.
     """
-    origen = os.getenv("NOTIFICACION_EMAIL_ORIGEN")
-    password = os.getenv("NOTIFICACION_EMAIL_PASSWORD")
+    api_key = os.getenv("RESEND_API_KEY")
+    origen = os.getenv("RESEND_FROM")
     destino = os.getenv("NOTIFICACION_EMAIL_DESTINO")
 
-    if not all([origen, password, destino]):
-        logger.warning("Variables de notificación por correo no configuradas; no se envía correo")
+    if not all([api_key, origen, destino]):
+        logger.warning("Variables de notificación por correo (Resend) no configuradas; no se envía correo")
         return False
 
     destinatarios = _parsear_destinatarios(destino)
@@ -72,26 +66,28 @@ def enviar_correo_nueva_reservacion(datos: dict, servidor_smtp=None) -> bool:
         logger.warning("NOTIFICACION_EMAIL_DESTINO no tiene ningún correo válido; no se envía correo")
         return False
 
-    try:
-        mensaje = _construir_mensaje(datos, origen, destinatarios)
+    payload = {
+        "from": origen,
+        "to": destinatarios,
+        "subject": f"Nueva reservación: {datos['prefijo']} — {datos['nombre_completo']}",
+        "text": _construir_cuerpo(datos),
+    }
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
 
-        if servidor_smtp is not None:
-            servidor_smtp.login(origen, password)
-            servidor_smtp.sendmail(origen, destinatarios, mensaje)
+    try:
+        if cliente_http is not None:
+            respuesta = cliente_http.post(RESEND_API_URL, json=payload, headers=headers)
         else:
-            # Puerto 587 con STARTTLS, no 465 con SSL directo: algunos
-            # proveedores de hosting (Railway incluido, al parecer) bloquean
-            # el 465 pero dejan pasar el 587, que es el puerto estándar de
-            # envío autenticado. timeout corto a propósito: si de todos
-            # modos el hosting bloquea SMTP saliente, esto falla rápido en
-            # vez de colgar el procesamiento del mensaje varios minutos.
-            with smtplib.SMTP("smtp.gmail.com", 587, timeout=10) as servidor:
-                servidor.starttls()
-                servidor.login(origen, password)
-                # Se codifica a UTF-8 porque el mensaje incluye acentos y
-                # smtplib solo acepta texto ASCII puro como str.
-                servidor.sendmail(origen, destinatarios, mensaje.encode("utf-8"))
+            with httpx.Client(timeout=10) as cliente:
+                respuesta = cliente.post(RESEND_API_URL, json=payload, headers=headers)
+
+        if respuesta.status_code >= 400:
+            logger.error(f"Resend rechazó el correo [{respuesta.status_code}]: {respuesta.text[:300]}")
+            return False
         return True
     except Exception as e:
-        logger.error(f"Error enviando correo de notificación: {e}")
+        logger.error(f"Error enviando correo de notificación (Resend): {e}")
         return False
