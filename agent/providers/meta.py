@@ -68,3 +68,43 @@ class ProveedorMeta(ProveedorWhatsApp):
             if r.status_code != 200:
                 logger.error(f"Error Meta API: {r.status_code} — {r.text}")
             return r.status_code == 200
+
+    async def enviar_documento(self, telefono: str, ruta: str, nombre_archivo: str, texto: str = "") -> bool:
+        """Sube un PDF a Meta y lo envía como documento de WhatsApp."""
+        if not self.access_token or not self.phone_number_id:
+            logger.warning("META_ACCESS_TOKEN o META_PHONE_NUMBER_ID no configurados")
+            return False
+        base = f"https://graph.facebook.com/{self.api_version}/{self.phone_number_id}"
+        headers = {"Authorization": f"Bearer {self.access_token}"}
+        try:
+            with open(ruta, "rb") as f:
+                contenido = f.read()
+            async with httpx.AsyncClient(timeout=60) as client:
+                subida = await client.post(
+                    f"{base}/media",
+                    headers=headers,
+                    data={"messaging_product": "whatsapp", "type": "application/pdf"},
+                    files={"file": (nombre_archivo, contenido, "application/pdf")},
+                )
+                if subida.status_code != 200:
+                    logger.error(f"Error subiendo documento a Meta: {subida.status_code} — {subida.text}")
+                    return False
+                documento = {"id": subida.json().get("id"), "filename": nombre_archivo}
+                if texto:
+                    documento["caption"] = texto
+                r = await client.post(
+                    f"{base}/messages",
+                    headers=headers,
+                    json={
+                        "messaging_product": "whatsapp",
+                        "to": telefono,
+                        "type": "document",
+                        "document": documento,
+                    },
+                )
+                if r.status_code != 200:
+                    logger.error(f"Error enviando documento por Meta: {r.status_code} — {r.text}")
+                return r.status_code == 200
+        except Exception as e:
+            logger.error(f"No se pudo enviar el documento: {e}")
+            return False

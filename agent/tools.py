@@ -10,12 +10,26 @@ y atender ventas de cabañas/eventos.
 import os
 import yaml
 import logging
+from contextvars import ContextVar
 from datetime import date
+from pathlib import Path
 
 from agent import calendar_service, notificaciones
 from agent.memory import crear_solicitud_reservacion, listar_solicitudes_reservacion
 
 logger = logging.getLogger("agentkit")
+
+# Teléfono del cliente al que se está atendiendo. main.py lo fija antes de
+# llamar al cerebro, para que las herramientas sepan a quién enviarle archivos.
+telefono_actual: ContextVar[str] = ContextVar("telefono_actual", default="")
+
+DOCUMENTOS = {
+    "informacion": {
+        "ruta": Path(__file__).resolve().parent.parent / "assets" / "Quinta-Esmeralda-Informacion.pdf",
+        "archivo": "Quinta Esmeralda - Informacion.pdf",
+        "texto": "Información de Quinta Esmeralda: cabañas, eventos, precios y reglamento.",
+    },
+}
 
 
 def cargar_info_negocio() -> dict:
@@ -166,6 +180,20 @@ async def consultar_mis_solicitudes(telefono: str) -> list[dict]:
 def obtener_contacto_humano() -> dict:
     """Retorna los datos de contacto para escalar a una persona del equipo."""
     return {
-        "telefonos": ["4152 3137", "6185 1364", "272 783 0327"],
-        "mensaje": "Puede comunicarse directamente al equipo de Quinta Esmeralda a estos números.",
+        "whatsapp": "272 258 6606",
+        "llamadas": "272 783 0327",
+        "mensaje": "Puede escribir a este WhatsApp o llamar al 272 783 0327 (solo llamadas).",
     }
+
+
+async def enviar_documento(nombre: str) -> dict:
+    """Envía por WhatsApp al cliente actual un documento del negocio."""
+    doc = DOCUMENTOS.get(nombre)
+    telefono = telefono_actual.get()
+    if doc is None:
+        return {"enviado": False, "error": f"Documento desconocido: {nombre}"}
+    if not telefono:
+        return {"enviado": False, "error": "No se sabe a qué cliente enviarlo"}
+    from agent.providers import obtener_proveedor
+    ok = await obtener_proveedor().enviar_documento(telefono, str(doc["ruta"]), doc["archivo"], doc["texto"])
+    return {"enviado": True} if ok else {"enviado": False, "error": "No se pudo enviar el archivo"}

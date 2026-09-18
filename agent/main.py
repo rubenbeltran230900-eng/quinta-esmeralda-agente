@@ -24,6 +24,7 @@ from agent.memory import (
     limpiar_eventos_viejos,
 )
 from agent.providers import obtener_proveedor
+from agent.tools import telefono_actual
 
 load_dotenv()
 
@@ -176,6 +177,7 @@ async def _procesar_mensaje(telefono: str, texto: str):
         # (brain.py agrega el mensaje actual, evitando duplicados)
         historial = await obtener_historial(telefono)
 
+        telefono_actual.set(telefono)
         respuesta = await generar_respuesta(texto, historial)
 
         await guardar_mensaje(telefono, "user", texto)

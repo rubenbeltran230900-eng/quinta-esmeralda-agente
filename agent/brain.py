@@ -88,11 +88,26 @@ TOOLS_SCHEMA = [
             "required": ["prefijo", "fecha_entrada", "fecha_salida", "nombre_completo", "telefono", "personas"],
         },
     },
+    {
+        "name": "enviar_documento",
+        "description": (
+            "Envía por WhatsApp al cliente el PDF informativo de Quinta "
+            "Esmeralda (cabañas, eventos, precios, menú y reglamento). Úsala "
+            "cuando el cliente pida información general, el menú, los precios "
+            "o el reglamento por escrito, y solo una vez por conversación."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"nombre": {"type": "string", "enum": ["informacion"]}},
+            "required": ["nombre"],
+        },
+    },
 ]
 
 DISPATCH_HERRAMIENTAS = {
     "verificar_disponibilidad": agent_tools.verificar_disponibilidad,
     "crear_reservacion": agent_tools.crear_reservacion,
+    "enviar_documento": agent_tools.enviar_documento,
 }
 
 

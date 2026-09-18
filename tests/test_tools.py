@@ -83,3 +83,31 @@ async def test_crear_reservacion_no_falla_si_sqlite_falla(tools_module, monkeypa
     )
 
     assert resultado["event_id"] == "evt-3"
+
+
+async def test_enviar_documento_manda_pdf_al_telefono_actual(tools_module, monkeypatch):
+    tools = tools_module
+    enviados = []
+
+    class ProveedorFalso:
+        async def enviar_documento(self, telefono, ruta, archivo, texto=""):
+            enviados.append((telefono, ruta, archivo))
+            return True
+
+    monkeypatch.setattr("agent.providers.obtener_proveedor", lambda: ProveedorFalso())
+    tools.telefono_actual.set("5212721234567")
+
+    resultado = await tools.enviar_documento("informacion")
+
+    assert resultado == {"enviado": True}
+    assert enviados[0][0] == "5212721234567"
+    assert enviados[0][1].endswith("Quinta-Esmeralda-Informacion.pdf")
+
+
+async def test_enviar_documento_sin_telefono_falla(tools_module):
+    tools = tools_module
+    tools.telefono_actual.set("")
+
+    resultado = await tools.enviar_documento("informacion")
+
+    assert resultado["enviado"] is False

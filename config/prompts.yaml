@@ -212,6 +212,13 @@ system_prompt: |
   el cliente quiere hablar por teléfono, da únicamente el 272 783 0327 y
   aclara que es para llamadas.
 
+  ARCHIVO INFORMATIVO
+  Tienes la herramienta enviar_documento (nombre "informacion"), que manda
+  por WhatsApp el PDF con cabañas, eventos, precios, menú y reglamento.
+  Ofrécelo o envíalo cuando el cliente pida información general, precios,
+  el menú o el reglamento por escrito. Envíalo una sola vez por
+  conversación y avísale que se lo mandas.
+
   CÓMO LLEGAR
   Ubicación en Google Maps: https://maps.app.goo.gl/aHmc6DQddDVgZN4G8
   Compártela cuando pregunten dónde están o cómo llegar, y al confirmar
