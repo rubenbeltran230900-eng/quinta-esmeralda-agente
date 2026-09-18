@@ -206,4 +206,11 @@ async def pausar_conversacion(motivo: str = "") -> dict:
         return {"pausada": False, "error": "No se sabe a qué cliente pausar"}
     await pausar_conversacion_db(telefono)
     logger.info(f"Asistente en pausa para {telefono}: {motivo}")
+    if motivo == "pide_persona":
+        try:
+            from agent.memory import obtener_historial
+            historial = await obtener_historial(telefono)
+            notificaciones.enviar_correo_cliente_pide_persona(telefono, historial)
+        except Exception as e:  # el aviso nunca debe impedir el traspaso
+            logger.error(f"No se pudo avisar por correo que {telefono} pidió una persona: {e}")
     return {"pausada": True}

@@ -66,6 +66,25 @@ def test_enviar_correo_a_varios_destinatarios(monkeypatch):
     assert kwargs["json"]["to"] == ["rbelmor@hotmail.com", "reservaciones.qe@gmail.com"]
 
 
+def test_correo_cliente_pide_persona_incluye_telefono_y_conversacion(monkeypatch):
+    monkeypatch.setenv("RESEND_API_KEY", "re_falsa_123")
+    monkeypatch.setenv("RESEND_FROM", "Quinta Esmeralda <onboarding@resend.dev>")
+    monkeypatch.setenv("NOTIFICACION_EMAIL_DESTINO", "negocio@gmail.com")
+    cliente_falso = MagicMock()
+    cliente_falso.post.return_value = _respuesta_falsa(200)
+
+    resultado = notificaciones.enviar_correo_cliente_pide_persona(
+        "5212721234567",
+        [{"role": "user", "content": "quiero hablar con alguien"}],
+        cliente_http=cliente_falso,
+    )
+
+    assert resultado is True
+    _, kwargs = cliente_falso.post.call_args
+    assert "5212721234567" in kwargs["json"]["subject"]
+    assert "Cliente: quiero hablar con alguien" in kwargs["json"]["text"]
+
+
 def test_enviar_correo_con_error_de_resend_retorna_false(monkeypatch):
     monkeypatch.setenv("RESEND_API_KEY", "re_falsa_123")
     monkeypatch.setenv("RESEND_FROM", "Quinta Esmeralda <onboarding@resend.dev>")

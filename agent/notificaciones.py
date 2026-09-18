@@ -45,9 +45,9 @@ def _construir_cuerpo(datos: dict) -> str:
     )
 
 
-def enviar_correo_nueva_reservacion(datos: dict, cliente_http=None) -> bool:
+def _enviar_correo(asunto: str, cuerpo: str, cliente_http=None) -> bool:
     """
-    Envía el correo de notificación vía la API de Resend.
+    Envía un correo al negocio vía la API de Resend.
 
     `cliente_http` se puede inyectar en pruebas — debe exponer un método
     `.post(url, json=..., headers=...)` que retorne un objeto con
@@ -69,8 +69,8 @@ def enviar_correo_nueva_reservacion(datos: dict, cliente_http=None) -> bool:
     payload = {
         "from": origen,
         "to": destinatarios,
-        "subject": f"Nueva reservación: {datos['prefijo']} — {datos['nombre_completo']}",
-        "text": _construir_cuerpo(datos),
+        "subject": asunto,
+        "text": cuerpo,
     }
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -91,3 +91,32 @@ def enviar_correo_nueva_reservacion(datos: dict, cliente_http=None) -> bool:
     except Exception as e:
         logger.error(f"Error enviando correo de notificación (Resend): {e}")
         return False
+
+
+def enviar_correo_nueva_reservacion(datos: dict, cliente_http=None) -> bool:
+    """Avisa al negocio de una nueva reservación apartada por el agente."""
+    return _enviar_correo(
+        f"Nueva reservación: {datos['prefijo']} — {datos['nombre_completo']}",
+        _construir_cuerpo(datos),
+        cliente_http,
+    )
+
+
+def enviar_correo_cliente_pide_persona(telefono: str, mensajes: list[dict], cliente_http=None) -> bool:
+    """Avisa al negocio que un cliente pidió hablar con una persona."""
+    if mensajes:
+        conversacion = "\n".join(
+            f"{'Cliente' if m['role'] == 'user' else 'Asistente'}: {m['content']}"
+            for m in mensajes[-6:]
+        )
+    else:
+        conversacion = "(sin mensajes previos)"
+    cuerpo = (
+        "Un cliente pidió hablar con una persona por WhatsApp.\n\n"
+        f"Teléfono: {telefono}\n\n"
+        "Últimos mensajes:\n"
+        f"{conversacion}\n\n"
+        "El asistente quedó en pausa en esa conversación. Atiéndalo desde la\n"
+        "bandeja de Meta Business Suite o llámele."
+    )
+    return _enviar_correo(f"Cliente pide hablar con una persona: {telefono}", cuerpo, cliente_http)
