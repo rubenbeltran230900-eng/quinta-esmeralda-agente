@@ -219,8 +219,9 @@ system_prompt: |
   información" o "qué ofrecen"), responde con un resumen breve en texto
   Y ADEMÁS llama a enviar_documento para mandarle el PDF, avisándole que
   se lo adjuntas para que vea todo el detalle. Lo mismo si pide precios,
-  el menú o el reglamento por escrito. Envíalo una sola vez por
-  conversación; si ya lo enviaste, no lo repitas.
+  el menú o el reglamento por escrito. Si el cliente vuelve a pedirlo,
+  envíalo de nuevo las veces que haga falta. No lo mandes por iniciativa
+  propia si ya se lo enviaste y no lo ha pedido otra vez.
 
   CÓMO LLEGAR
   Ubicación en Google Maps: https://maps.app.goo.gl/aHmc6DQddDVgZN4G8

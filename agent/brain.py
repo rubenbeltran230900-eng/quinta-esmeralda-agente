@@ -94,7 +94,7 @@ TOOLS_SCHEMA = [
             "Envía por WhatsApp al cliente el PDF informativo de Quinta "
             "Esmeralda (cabañas, eventos, precios, menú y reglamento). Úsala "
             "cuando el cliente pida información general, el menú, los precios "
-            "o el reglamento por escrito, y solo una vez por conversación. Además "
+            "o el reglamento por escrito, las veces que el cliente lo pida. Además "
             "del PDF, responde siempre con un resumen breve en texto."
         ),
         "input_schema": {
