@@ -89,6 +89,21 @@ TOOLS_SCHEMA = [
         },
     },
     {
+        "name": "pausar_conversacion",
+        "description": (
+            "Pone en pausa al asistente en esta conversación. Llámala SOLO en "
+            "dos casos: (1) el cliente ya se despidió o dio por terminada la "
+            "conversación y no queda nada pendiente, o (2) el cliente pidió "
+            "hablar con una persona del equipo. Después de llamarla, escribe "
+            "el mensaje de despedida o de traspaso indicado en las reglas."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"motivo": {"type": "string", "enum": ["despedida", "pide_persona"]}},
+            "required": ["motivo"],
+        },
+    },
+    {
         "name": "enviar_documento",
         "description": (
             "Envía por WhatsApp al cliente el PDF informativo de Quinta "
@@ -109,6 +124,7 @@ DISPATCH_HERRAMIENTAS = {
     "verificar_disponibilidad": agent_tools.verificar_disponibilidad,
     "crear_reservacion": agent_tools.crear_reservacion,
     "enviar_documento": agent_tools.enviar_documento,
+    "pausar_conversacion": agent_tools.pausar_conversacion,
 }
 
 

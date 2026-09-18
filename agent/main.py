@@ -24,6 +24,7 @@ from agent.memory import (
     limpiar_eventos_viejos,
 )
 from agent.providers import obtener_proveedor
+from agent import pausa
 from agent.tools import telefono_actual
 
 load_dotenv()
@@ -173,6 +174,14 @@ async def _esperar_y_procesar(telefono: str):
 async def _procesar_mensaje(telefono: str, texto: str):
     """Genera la respuesta con Claude y la manda de vuelta por WhatsApp."""
     try:
+        decision = await pausa.evaluar(telefono, texto)
+        if decision == "ignorar":
+            logger.info(f"Asistente en pausa para {telefono}: mensaje sin respuesta")
+            return
+        if decision == "recordar":
+            await proveedor.enviar_mensaje(telefono, pausa.MENSAJE_PAUSA)
+            return
+
         # El historial se lee ANTES de guardar el mensaje actual
         # (brain.py agrega el mensaje actual, evitando duplicados)
         historial = await obtener_historial(telefono)

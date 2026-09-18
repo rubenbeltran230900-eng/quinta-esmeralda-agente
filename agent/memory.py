@@ -72,6 +72,19 @@ class EventoProcesado(Base):
     creado_en: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class PausaConversacion(Base):
+    """
+    Conversaciones en las que el asistente está en pausa (despedida o cliente
+    que pidió hablar con una persona). Mientras exista la fila, el bot no
+    responde; solo se reactiva cuando el cliente escribe la palabra clave.
+    """
+    __tablename__ = "pausas_conversacion"
+
+    telefono: Mapped[str] = mapped_column(String(50), primary_key=True)
+    recordatorio_enviado: Mapped[int] = mapped_column(Integer, default=0)
+    creado_en: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 async def inicializar_db():
     """Crea las tablas si no existen."""
     async with engine.begin() as conn:
@@ -211,3 +224,39 @@ async def limpiar_eventos_viejos(dias: int = 7):
     async with async_session() as session:
         await session.execute(delete(EventoProcesado).where(EventoProcesado.creado_en < limite))
         await session.commit()
+
+async def pausar_conversacion(telefono: str):
+    """Pone en pausa al asistente para ese cliente (si ya estaba, no cambia nada)."""
+    async with async_session() as session:
+        session.add(PausaConversacion(telefono=telefono, recordatorio_enviado=0, creado_en=datetime.utcnow()))
+        try:
+            await session.commit()
+        except IntegrityError:
+            await session.rollback()
+
+
+async def reactivar_conversacion(telefono: str):
+    """Quita la pausa para que el asistente vuelva a responder."""
+    async with async_session() as session:
+        await session.execute(delete(PausaConversacion).where(PausaConversacion.telefono == telefono))
+        await session.commit()
+
+
+async def esta_pausada(telefono: str) -> bool:
+    async with async_session() as session:
+        fila = await session.get(PausaConversacion, telefono)
+        return fila is not None
+
+
+async def marcar_recordatorio_pausa(telefono: str) -> bool:
+    """
+    Registra que ya se le avisó al cliente que el asistente está en pausa.
+    Retorna True si es la primera vez (hay que avisarle), False si ya se le avisó.
+    """
+    async with async_session() as session:
+        fila = await session.get(PausaConversacion, telefono)
+        if fila is None or fila.recordatorio_enviado:
+            return False
+        fila.recordatorio_enviado = 1
+        await session.commit()
+        return True

@@ -16,6 +16,7 @@ from pathlib import Path
 
 from agent import calendar_service, notificaciones
 from agent.memory import crear_solicitud_reservacion, listar_solicitudes_reservacion
+from agent.memory import pausar_conversacion as pausar_conversacion_db
 
 logger = logging.getLogger("agentkit")
 
@@ -197,3 +198,12 @@ async def enviar_documento(nombre: str) -> dict:
     from agent.providers import obtener_proveedor
     ok = await obtener_proveedor().enviar_documento(telefono, str(doc["ruta"]), doc["archivo"], doc["texto"])
     return {"enviado": True} if ok else {"enviado": False, "error": "No se pudo enviar el archivo"}
+
+async def pausar_conversacion(motivo: str = "") -> dict:
+    """Pone en pausa al asistente para el cliente actual (despedida o pide una persona)."""
+    telefono = telefono_actual.get()
+    if not telefono:
+        return {"pausada": False, "error": "No se sabe a qué cliente pausar"}
+    await pausar_conversacion_db(telefono)
+    logger.info(f"Asistente en pausa para {telefono}: {motivo}")
+    return {"pausada": True}
