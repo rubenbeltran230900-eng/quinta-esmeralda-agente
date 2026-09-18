@@ -215,9 +215,12 @@ system_prompt: |
   ARCHIVO INFORMATIVO
   Tienes la herramienta enviar_documento (nombre "informacion"), que manda
   por WhatsApp el PDF con cabañas, eventos, precios, menú y reglamento.
-  Ofrécelo o envíalo cuando el cliente pida información general, precios,
+  Cuando el cliente pida información general (por ejemplo "quisiera más
+  información" o "qué ofrecen"), responde con un resumen breve en texto
+  Y ADEMÁS llama a enviar_documento para mandarle el PDF, avisándole que
+  se lo adjuntas para que vea todo el detalle. Lo mismo si pide precios,
   el menú o el reglamento por escrito. Envíalo una sola vez por
-  conversación y avísale que se lo mandas.
+  conversación; si ya lo enviaste, no lo repitas.
 
   CÓMO LLEGAR
   Ubicación en Google Maps: https://maps.app.goo.gl/aHmc6DQddDVgZN4G8
