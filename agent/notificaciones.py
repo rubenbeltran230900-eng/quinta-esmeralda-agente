@@ -14,6 +14,7 @@ aunque bloqueen SMTP.
 """
 
 import os
+import base64
 import logging
 import httpx
 
@@ -45,7 +46,7 @@ def _construir_cuerpo(datos: dict) -> str:
     )
 
 
-def _enviar_correo(asunto: str, cuerpo: str, cliente_http=None) -> bool:
+def _enviar_correo(asunto: str, cuerpo: str, cliente_http=None, adjuntos: list[dict] | None = None) -> bool:
     """
     Envía un correo al negocio vía la API de Resend.
 
@@ -72,6 +73,8 @@ def _enviar_correo(asunto: str, cuerpo: str, cliente_http=None) -> bool:
         "subject": asunto,
         "text": cuerpo,
     }
+    if adjuntos:
+        payload["attachments"] = adjuntos
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -81,7 +84,7 @@ def _enviar_correo(asunto: str, cuerpo: str, cliente_http=None) -> bool:
         if cliente_http is not None:
             respuesta = cliente_http.post(RESEND_API_URL, json=payload, headers=headers)
         else:
-            with httpx.Client(timeout=10) as cliente:
+            with httpx.Client(timeout=30) as cliente:
                 respuesta = cliente.post(RESEND_API_URL, json=payload, headers=headers)
 
         if respuesta.status_code >= 400:
@@ -120,3 +123,34 @@ def enviar_correo_cliente_pide_persona(telefono: str, mensajes: list[dict], clie
         "bandeja de Meta Business Suite o llámele."
     )
     return _enviar_correo(f"Cliente pide hablar con una persona: {telefono}", cuerpo, cliente_http)
+
+def enviar_correo_archivo_cliente(
+    telefono: str,
+    texto: str,
+    contenido: bytes | None,
+    nombre_archivo: str,
+    cliente_http=None,
+) -> bool:
+    """
+    Avisa al negocio que un cliente mandó una foto o documento (normalmente
+    el comprobante de pago del anticipo) y lo adjunta al correo.
+    """
+    cuerpo = (
+        "Un cliente envió un archivo por WhatsApp (posible comprobante de pago).\n\n"
+        f"Teléfono: {telefono}\n"
+        f"Texto que acompañaba al archivo: {texto or '(ninguno)'}\n\n"
+    )
+    adjuntos = None
+    if contenido:
+        adjuntos = [{"filename": nombre_archivo, "content": base64.b64encode(contenido).decode("ascii")}]
+        cuerpo += "El archivo va adjunto a este correo.\n"
+    else:
+        cuerpo += (
+            "No se pudo adjuntar el archivo. Pídale al cliente que lo reenvíe\n"
+            "o confírmelo directamente con él.\n"
+        )
+    cuerpo += (
+        "\nRevise el depósito en el banco y, si corresponde, actualice la\n"
+        "reservación en el calendario y confírmele al cliente."
+    )
+    return _enviar_correo(f"Archivo recibido de un cliente: {telefono}", cuerpo, cliente_http, adjuntos)

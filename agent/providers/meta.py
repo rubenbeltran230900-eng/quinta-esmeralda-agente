@@ -9,6 +9,9 @@ from agent.providers.base import ProveedorWhatsApp, MensajeEntrante
 
 logger = logging.getLogger("agentkit")
 
+TIPOS_NO_TEXTO = {"image", "document", "audio", "video", "sticker", "location", "contacts"}
+MAX_BYTES_MEDIA = 15 * 1024 * 1024
+
 
 class ProveedorMeta(ProveedorWhatsApp):
     """Proveedor de WhatsApp usando la API oficial de Meta (Cloud API)."""
@@ -38,14 +41,54 @@ class ProveedorMeta(ProveedorWhatsApp):
             for change in entry.get("changes", []):
                 value = change.get("value", {})
                 for msg in value.get("messages", []):
-                    if msg.get("type") == "text":
+                    tipo = msg.get("type", "")
+                    if tipo == "text":
                         mensajes.append(MensajeEntrante(
                             telefono=msg.get("from", ""),
                             texto=msg.get("text", {}).get("body", ""),
                             mensaje_id=msg.get("id", ""),
                             es_propio=False,  # Meta solo envía mensajes entrantes
                         ))
+                    elif tipo in TIPOS_NO_TEXTO:
+                        # Fotos, documentos, audios, etc. El agente no los lee,
+                        # pero main.py avisa al equipo y le contesta al cliente.
+                        contenido = msg.get(tipo) or {}
+                        mensajes.append(MensajeEntrante(
+                            telefono=msg.get("from", ""),
+                            texto=contenido.get("caption", "") or "",
+                            mensaje_id=msg.get("id", ""),
+                            es_propio=False,
+                            tipo=tipo,
+                            media_id=contenido.get("id", "") or "",
+                            nombre_archivo=contenido.get("filename", "") or "",
+                        ))
         return mensajes
+
+    async def descargar_media(self, media_id: str) -> tuple[bytes, str] | None:
+        """Descarga de Meta una imagen o documento que envió el cliente."""
+        if not self.access_token or not media_id:
+            return None
+        headers = {"Authorization": f"Bearer {self.access_token}"}
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                info = await client.get(
+                    f"https://graph.facebook.com/{self.api_version}/{media_id}", headers=headers
+                )
+                if info.status_code != 200:
+                    logger.error(f"Error consultando archivo en Meta: {info.status_code} — {info.text}")
+                    return None
+                datos = info.json()
+                if int(datos.get("file_size") or 0) > MAX_BYTES_MEDIA:
+                    logger.warning("El archivo del cliente es demasiado grande para adjuntarlo")
+                    return None
+                archivo = await client.get(datos["url"], headers=headers)
+                if archivo.status_code != 200:
+                    logger.error(f"Error descargando archivo de Meta: {archivo.status_code}")
+                    return None
+                return archivo.content, datos.get("mime_type", "application/octet-stream")
+        except Exception as e:
+            logger.error(f"No se pudo descargar el archivo del cliente: {e}")
+            return None
 
     async def enviar_mensaje(self, telefono: str, mensaje: str) -> bool:
         """Envía mensaje via Meta WhatsApp Cloud API."""

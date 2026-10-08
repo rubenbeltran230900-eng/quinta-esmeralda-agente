@@ -18,6 +18,9 @@ class MensajeEntrante:
     texto: str          # Contenido del mensaje
     mensaje_id: str     # ID único del mensaje
     es_propio: bool     # True si lo envió el agente (se ignora)
+    tipo: str = "text"  # "text", "image", "document", "audio", "video", ...
+    media_id: str = ""  # Id del archivo en el proveedor (imagen o documento)
+    nombre_archivo: str = ""  # Nombre original, si el cliente mandó un documento
 
 
 class ProveedorWhatsApp(ABC):
@@ -36,6 +39,10 @@ class ProveedorWhatsApp(ABC):
     async def enviar_documento(self, telefono: str, ruta: str, nombre_archivo: str, texto: str = "") -> bool:
         """Envía un archivo PDF. Por defecto no está soportado."""
         return False
+
+    async def descargar_media(self, media_id: str) -> tuple[bytes, str] | None:
+        """Descarga un archivo enviado por el cliente. Retorna (contenido, mime) o None."""
+        return None
 
     async def validar_webhook(self, request: Request) -> dict | int | None:
         """Verificación GET del webhook (solo Meta la requiere). Retorna respuesta o None."""

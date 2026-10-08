@@ -22,9 +22,11 @@ from agent.memory import (
     obtener_historial,
     marcar_evento_procesado,
     limpiar_eventos_viejos,
+    esta_pausada,
 )
 from agent.providers import obtener_proveedor
 from agent import pausa
+from agent import notificaciones
 from agent import panel
 from agent.tools import telefono_actual
 
@@ -65,6 +67,12 @@ _candados: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 # reservación que ya se estaba creando: solo se cancelan tareas que
 # todavía están esperando, nunca una que ya empezó a procesar.
 _procesando: set[str] = set()
+
+# Tareas de fotos/documentos en curso (se guardan para que no las recoja el
+# recolector de basura a medias) y la hora del último acuse por teléfono.
+_tareas_media: set[asyncio.Task] = set()
+_ultimo_acuse: dict[str, float] = {}
+SEGUNDOS_ENTRE_ACUSES = 60
 
 
 @asynccontextmanager
@@ -119,7 +127,7 @@ async def webhook_handler(request: Request):
         return {"status": "ignorado"}
 
     for msg in mensajes:
-        if msg.es_propio or not msg.texto:
+        if msg.es_propio or (msg.tipo == "text" and not msg.texto):
             continue
 
         # Meta entrega "al menos una vez": el mismo mensaje puede llegar
@@ -129,11 +137,73 @@ async def webhook_handler(request: Request):
             logger.info(f"Mensaje repetido, se ignora: {msg.mensaje_id}")
             continue
 
+        if msg.tipo != "text":
+            _tareas_media.add(tarea := asyncio.create_task(_procesar_no_texto(msg)))
+            tarea.add_done_callback(_tareas_media.discard)
+            continue
+
         logger.info(f"Mensaje de {msg.telefono}: {msg.texto}")
         _buffer_mensajes[msg.telefono].append(msg.texto)
         _agendar_procesamiento(msg.telefono)
 
     return {"status": "ok"}
+
+
+EXTENSIONES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf"}
+
+MENSAJE_ARCHIVO_RECIBIDO = (
+    "Recibimos su archivo, muchas gracias. Nuestro equipo lo revisará y le "
+    "confirmará por este medio a la brevedad."
+)
+MENSAJE_SOLO_TEXTO = (
+    "Por el momento solo puedo leer mensajes de texto. ¿Podría escribirme "
+    "su mensaje, por favor? Si lo prefiere, puede llamar al 272 783 0327."
+)
+ETIQUETAS_TIPO = {"image": "una imagen", "document": "un documento", "audio": "un audio",
+                  "video": "un video", "sticker": "un sticker", "location": "una ubicación",
+                  "contacts": "un contacto"}
+
+
+async def _procesar_no_texto(msg):
+    """
+    Atiende lo que no es texto. Fotos y documentos (normalmente el
+    comprobante del anticipo) se mandan por correo al equipo y se le
+    confirma la recepción al cliente, esté o no en pausa el asistente.
+    Para audios, videos y demás, se le pide al cliente que escriba.
+    """
+    telefono = msg.telefono
+    try:
+        etiqueta = ETIQUETAS_TIPO.get(msg.tipo, "un archivo")
+        registro = f"[El cliente envió {etiqueta}]" + (f" {msg.texto}" if msg.texto else "")
+        logger.info(f"Mensaje de {telefono}: {registro}")
+
+        if msg.tipo in ("image", "document"):
+            descarga = await proveedor.descargar_media(msg.media_id)
+            contenido, mime = descarga if descarga else (None, "")
+            nombre = msg.nombre_archivo or f"archivo-{telefono}.{EXTENSIONES.get(mime, 'bin')}"
+            avisado = await asyncio.to_thread(
+                notificaciones.enviar_correo_archivo_cliente, telefono, msg.texto, contenido, nombre
+            )
+            if not avisado:
+                logger.error(f"No se pudo avisar por correo del archivo de {telefono}")
+            respuesta = MENSAJE_ARCHIVO_RECIBIDO
+        else:
+            if await esta_pausada(telefono):
+                await guardar_mensaje(telefono, "user", registro)
+                return
+            respuesta = MENSAJE_SOLO_TEXTO
+
+        async with _candados[telefono]:
+            await guardar_mensaje(telefono, "user", registro)
+            # Varias fotos seguidas: se guarda cada una, pero se contesta una sola vez
+            ahora = asyncio.get_running_loop().time()
+            if ahora - _ultimo_acuse.get(telefono, -1e9) < SEGUNDOS_ENTRE_ACUSES:
+                return
+            _ultimo_acuse[telefono] = ahora
+            await guardar_mensaje(telefono, "assistant", respuesta)
+        await proveedor.enviar_mensaje(telefono, respuesta)
+    except Exception as e:  # noqa: BLE001 — un fallo aquí no debe tumbar el servidor
+        logger.exception(f"Error procesando archivo de {telefono}: {e}")
 
 
 def _agendar_procesamiento(telefono: str):
