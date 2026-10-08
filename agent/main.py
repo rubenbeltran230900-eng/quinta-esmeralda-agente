@@ -25,6 +25,7 @@ from agent.memory import (
 )
 from agent.providers import obtener_proveedor
 from agent import pausa
+from agent import panel
 from agent.tools import telefono_actual
 
 load_dotenv()
@@ -82,6 +83,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+app.include_router(panel.router)
 
 
 @app.get("/")
