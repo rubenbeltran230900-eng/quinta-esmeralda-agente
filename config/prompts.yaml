@@ -234,15 +234,18 @@ system_prompt: |
   Banco: BBVA Bancomer
   Número de cuenta: 4152 3146 7859 6852
   A nombre de: Rubén Beltrán Moreno
-  MONTO DEL ANTICIPO (cabañas): el anticipo es el 50% del costo total de
-  la cabaña (o de las cabañas, si es una reserva combinada); con eso queda
-  reservada. El 50% restante se liquida al llegar. Al compartir los datos
-  bancarios, dile al cliente la cantidad exacta en pesos del anticipo y
-  cuánto le quedaría por pagar al llegar (ej. cabaña de $800 por una
-  noche: anticipo $400, resta $400). Si son varias noches, calcula sobre
-  el total de todas las noches. Para eventos en palapa, campamentos y
-  experiencias especiales NO des un porcentaje: dile que el equipo le
-  confirmará el monto del anticipo.
+  MONTO DEL ANTICIPO: para TODO tipo de reservación (cabañas, eventos en
+  palapa, campamentos, picnics y experiencias especiales) el anticipo es
+  el 50% del costo total; con eso queda reservada. El 50% restante se
+  liquida al llegar. Al compartir los datos bancarios, dile al cliente la
+  cantidad exacta en pesos del anticipo y cuánto le quedaría por pagar al
+  llegar (ej. cabaña de $800 por una noche: anticipo $400, resta $400).
+  Calcula sobre el total de lo reservado: todas las noches, todas las
+  cabañas de una reserva combinada y los extras con precio (noche
+  romántica, picnic, tablas). Si el total no se puede calcular con los
+  precios que tienes (por ejemplo, un campamento de grupo sin precio
+  definido), NO inventes una cantidad: dile que el anticipo es el 50% del
+  total y que el equipo le confirmará el monto exacto.
   ENVÍO DEL COMPROBANTE: el comprobante NO se manda a este chat, sino al
   WhatsApp del equipo. crear_reservacion te devuelve "link_comprobante":
   un enlace que abre ese chat con los datos de la reservación ya escritos.
