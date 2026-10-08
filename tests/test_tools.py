@@ -85,6 +85,23 @@ async def test_crear_reservacion_no_falla_si_sqlite_falla(tools_module, monkeypa
     assert resultado["event_id"] == "evt-3"
 
 
+def test_link_comprobante_abre_chat_del_equipo_con_los_datos(tools_module, monkeypatch):
+    from urllib.parse import unquote
+    monkeypatch.delenv("WHATSAPP_COMPROBANTES", raising=False)
+
+    link = tools_module.construir_link_comprobante(
+        "C6", date(2026, 11, 14), date(2026, 11, 15), "Juan Pérez", 2,
+    )
+
+    assert link.startswith("https://wa.me/522727830327?text=")
+    assert " " not in link and "\n" not in link
+    texto = unquote(link.split("?text=")[1])
+    assert "Cabaña para 2 personas (C6)" in texto
+    assert "A nombre de: Juan Pérez" in texto
+    assert "Entrada: 14/11/2026" in texto
+    assert "Salida: 15/11/2026" in texto
+
+
 async def test_enviar_documento_manda_pdf_al_telefono_actual(tools_module, monkeypatch):
     tools = tools_module
     enviados = []

@@ -13,6 +13,7 @@ import logging
 from contextvars import ContextVar
 from datetime import date
 from pathlib import Path
+from urllib.parse import quote
 
 from agent import calendar_service, notificaciones
 from agent.memory import crear_solicitud_reservacion, listar_solicitudes_reservacion
@@ -104,6 +105,38 @@ async def verificar_disponibilidad(prefijo: str, fecha_entrada: str, fecha_salid
     return calendar_service.verificar_disponibilidad(prefijo, entrada, salida)
 
 
+NOMBRES_RECURSO = {
+    "C1": "Cabaña para 4 personas (C1)",
+    "C2": "Cabaña para 4 personas (C2)",
+    "C6": "Cabaña para 2 personas (C6)",
+    "C7": "Cabaña para 10 personas (C7)",
+    "FAMILIAR": "Cabaña familiar para 15 personas",
+    "EVENTO": "Evento en palapa",
+    "CAMPA": "Campamento de grupo",
+    "PICNIC": "Picnic / experiencia especial",
+}
+
+
+def construir_link_comprobante(
+    prefijo: str, entrada: date, salida: date, nombre_completo: str, personas: int,
+) -> str:
+    """
+    Enlace de WhatsApp que abre un chat con el número del equipo que recibe
+    los comprobantes, con los datos de la reservación ya escritos. El
+    cliente solo adjunta la foto de su comprobante y envía.
+    """
+    numero = os.getenv("WHATSAPP_COMPROBANTES") or "522727830327"
+    texto = (
+        "Hola, envío mi comprobante de anticipo.\n"
+        f"Reservación: {NOMBRES_RECURSO.get(prefijo, prefijo)}\n"
+        f"A nombre de: {nombre_completo}\n"
+        f"Entrada: {entrada.strftime('%d/%m/%Y')}\n"
+        f"Salida: {salida.strftime('%d/%m/%Y')}\n"
+        f"Personas: {personas}"
+    )
+    return f"https://wa.me/{numero}?text={quote(texto)}"
+
+
 async def crear_reservacion(
     prefijo: str,
     fecha_entrada: str,
@@ -164,6 +197,9 @@ async def crear_reservacion(
     return {
         "event_id": resultado_calendario["event_id"],
         "link": resultado_calendario["link"],
+        "link_comprobante": construir_link_comprobante(
+            prefijo, entrada, salida, nombre_completo, personas,
+        ),
         "mensaje": (
             "Su solicitud quedó apartada en nuestro calendario. Nuestro equipo se "
             "pondrá en contacto para confirmar el anticipo. Recuerde que, por "
